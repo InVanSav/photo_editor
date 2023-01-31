@@ -13,7 +13,7 @@ enum class NodeTypes {
 enum class ButtonTypes {
     INT, FLOAT, STRING, IMAGE, SEPIA, GREY, INVERT,
     BRIGHT, GAUSSIAN, SCALE_PIXEL, SCALE, MOVE_PIXEL,
-    MOVE, ROTATE, ADD_TEXT_PIXEL, ADD_TEXT
+    MOVE, ROTATE, ADD_TEXT_PIXEL, ADD_TEXT, FINISH_NODE
 }
 
 class Colors {
@@ -28,6 +28,7 @@ class Formats {
     companion object {
         const val PNG = "*.png"
         const val JPG = "*.jpg"
+        const val NS = "*.ns"
     }
 }
 
@@ -67,6 +68,9 @@ class Titles {
         const val IMAGE_FILES = "Image Files"
         const val OPEN_IMAGE_FILE = "Open Image File"
         const val SAVE_IMAGE = "Save Image"
+        const val NODE_FILES = "Node Files"
+        const val OPEN_NODES = "Open Nodes"
+        const val SAVE_NODES = "Save Nodes"
     }
 }
 

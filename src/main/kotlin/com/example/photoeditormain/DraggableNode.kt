@@ -120,7 +120,7 @@ abstract class DraggableNode : AnchorPane() {
         }
     }
 
-    private fun linkNodes(
+    fun linkNodes(
         source1: DraggableNode,
         source2: DraggableNode,
         a1: AnchorPane,
@@ -247,7 +247,9 @@ abstract class DraggableNode : AnchorPane() {
             this::class.simpleName!!,
             rootPane?.layoutX,
             rootPane?.layoutY,
-            null)
+            null,
+            null
+        )
     }
 
     open fun fromData(nodeData: NodeData) {
@@ -261,4 +263,5 @@ data class NodeData(val id: String,
                     val name: String,
                     val x: Double?,
                     val y: Double?,
-                    var data: String?)
+                    var data: String?,
+                    val type: ButtonTypes?)

@@ -1,12 +1,17 @@
 package com.example.photoeditormain
 
+import com.google.gson.Gson
 import javafx.application.Application
 import javafx.event.EventHandler
 import javafx.scene.Scene
 import javafx.scene.control.Button
 import javafx.scene.layout.AnchorPane
+import javafx.scene.layout.HBox
 import javafx.scene.layout.VBox
+import javafx.stage.FileChooser
 import javafx.stage.Stage
+import java.io.File
+import java.io.IOException
 
 class FaceWindow {
     private var root = AnchorPane()
@@ -16,6 +21,7 @@ class FaceWindow {
 
     fun start(): Scene {
         root.children.add(createButtons())
+        root.children.add(saveAndOpenNodesButtons(150.0, 25.0))
 
         val end = EndNode()
         end.layoutX = width - end.rootPane!!.prefWidth - 30
@@ -25,36 +31,13 @@ class FaceWindow {
         return scene
     }
 
-    private fun getStringNode(buttonTypes: ButtonTypes): String {
-        val string = when (buttonTypes) {
-            ButtonTypes.INT -> "int"
-            ButtonTypes.FLOAT -> "float"
-            ButtonTypes.STRING -> "string"
-            ButtonTypes.IMAGE -> "image"
-            ButtonTypes.SEPIA -> "sepia"
-            ButtonTypes.GREY -> "grey"
-            ButtonTypes.INVERT -> "invert"
-            ButtonTypes.BRIGHT -> "bright"
-            ButtonTypes.GAUSSIAN -> "gaussian"
-            ButtonTypes.SCALE_PIXEL -> "scale pixel"
-            ButtonTypes.SCALE -> "scale"
-            ButtonTypes.MOVE_PIXEL -> "move pixel"
-            ButtonTypes.MOVE -> "move"
-            ButtonTypes.ROTATE -> "rotate"
-            ButtonTypes.ADD_TEXT_PIXEL -> "add text pixel"
-            ButtonTypes.ADD_TEXT -> "add text"
-        }
-        return string
-    }
-
     private fun createButtons(): VBox {
         val vBox = VBox(20.0)
-        vBox.style = "-fx-padding: 20px 10px; -fx-margin: 10px; -fx-background-color: #5F9EA0;" +
-                "-fx-background-radius: 15px; -fx-border-radius: 15px; -fx-height: 100%;"
+        vBox.style = "-fx-padding: 20px 10px; -fx-background-color: #5F9EA0;" +
+                "-fx-background-radius: 15px; -fx-border-radius: 15px;"
 
         fun createButton(buttonTypes: ButtonTypes) {
-            val string = getStringNode(buttonTypes)
-            val button = Button(string)
+            val button = Button(buttonTypes.toString())
             button.style = "-fx-padding: 5px 10px; -fx-margin: 10px;" +
                     " -fx-text-style: bold; -fx-background-color: #778899;"
             button.onAction = EventHandler {
@@ -82,29 +65,124 @@ class FaceWindow {
         return vBox
     }
 
+    private fun saveAndOpenNodesButtons(x: Double, y: Double): HBox {
+        val hBox = HBox(10.0)
+        hBox.style = "-fx-padding: 20px 10px;-fx-background-color: #5F9EA0;" +
+                "-fx-background-radius: 15px; -fx-border-radius: 15px;"
+        hBox.layoutX = x
+        hBox.layoutY = y
+
+        val buttonSave = Button(Titles.SAVE_NODES)
+        buttonSave.style = "-fx-padding: 5px 10px; -fx-margin: 10px;" +
+                " -fx-text-style: bold; -fx-background-color: #778899;"
+
+        buttonSave.onAction = EventHandler {
+            val gson = Gson()
+            val nodes = root.children.filterIsInstance<DraggableNode>()
+            val listNodes = MutableList(nodes.size) { nodes[it].toData() }
+            val links = root.children.filterIsInstance<NodeLink>()
+            val listLinks = MutableList(links.size) { links[it].toData() }
+
+            println(gson.toJson(Saved(listNodes, listLinks)))
+
+            val fileChooser = FileChooser()
+            fileChooser.title = Titles.SAVE_NODES
+            fileChooser.extensionFilters.addAll(
+                FileChooser.ExtensionFilter(Titles.NODE_FILES, Formats.NS)
+            )
+
+            val dir = fileChooser.showSaveDialog(scene.window)
+            if (dir != null) {
+                try {
+                    val file = File(dir.toURI())
+                    file.writeText(gson.toJson(Saved(listNodes, listLinks)))
+                } catch (e: IOException) {
+                    println(e)
+                }
+            }
+        }
+        hBox.children.add(buttonSave)
+
+        val buttonOpen = Button(Titles.OPEN_NODES)
+        buttonOpen.style = "-fx-padding: 5px 10px; -fx-margin: 10px;" +
+                " -fx-text-style: bold; -fx-background-color: #778899;"
+
+        buttonOpen.onAction = EventHandler {
+            val fileChooser = FileChooser()
+            fileChooser.title = Titles.OPEN_NODES
+            fileChooser.extensionFilters.addAll(
+                FileChooser.ExtensionFilter(Titles.NODE_FILES, Formats.NS)
+            )
+
+            val dir = fileChooser.showOpenDialog(scene.window)
+            if (dir != null) {
+                try {
+                    val file = File(dir.toURI())
+                    if (!file.exists()) return@EventHandler
+
+                    val data = Gson().fromJson(file.readText(), Saved::class.java)
+                    if (data.links == null || data.nodes == null) return@EventHandler
+
+                    root.children.removeIf { it is DraggableNode || it is NodeLink }
+
+                    data.nodes.forEach {
+                        val node = it.type?.let { it1 -> getNode(it1) }
+                        node?.fromData(it)
+                        root.children.add(node)
+                    }
+
+                    data.links.forEach {
+
+                        val inNode = root.lookup("#${it.inputNode}") as DraggableNode
+                        val outNode = root.lookup("#${it.outputNode}") as DraggableNode
+                        val inAnchor = root.lookup("#${it.inputAnchor}") as AnchorPane
+                        val outAnchor = root.lookup("#${it.outputAnchor}") as AnchorPane
+
+                        inAnchor.layoutX = it.inputAnchorSize.first
+                        inAnchor.layoutY = it.inputAnchorSize.second
+
+                        outAnchor.layoutX = it.outputAnchorSize.first
+                        outAnchor.layoutY = it.outputAnchorSize.second
+
+                        inNode.linkNodes(outNode, inNode, outAnchor, inAnchor, it.inputAnchor!!).id = it.id
+                    }
+
+                } catch (e: IOException) {
+                    println(e)
+                }
+            }
+        }
+        hBox.children.add(buttonOpen)
+
+        return hBox
+    }
+
+
     private fun getNode(buttonTypes: ButtonTypes): DraggableNode {
-        return when (getStringNode(buttonTypes)) {
-            "int", IntNode::class.simpleName -> IntNode()
-            "float", FloatNode::class.simpleName -> FloatNode()
-            "string", StringNode::class.simpleName -> StringNode()
-            "image", ImageNodeClass::class.simpleName -> ImageNodeClass()
-            "sepia", SepiaNode::class.simpleName -> SepiaNode()
-            "grey", GreyNode::class.simpleName -> GreyNode()
-            "invert", InvertNode::class.simpleName -> InvertNode()
-            "bright", BrightnessNode::class.simpleName -> BrightnessNode()
-            "gaussian", GaussianNode::class.simpleName -> GaussianNode()
-            "scale pixel", ScalePixelNode::class.simpleName -> ScalePixelNode()
-            "scale", ScalePercentNode::class.simpleName -> ScalePercentNode()
-            "move pixel", MovePixelsNode::class.simpleName -> MovePixelsNode()
-            "move", MovePercentNode::class.simpleName -> MovePercentNode()
-            "rotate", RotateNode::class.simpleName -> RotateNode()
-            "add text pixel", AddTextPixelNode::class.simpleName -> AddTextPixelNode()
-            "add text", AddTextPercentNode::class.simpleName -> AddTextPercentNode()
-            EndNode::class.simpleName -> EndNode()
-            else -> IntNode()
+        return when (buttonTypes) {
+            ButtonTypes.INT -> IntNode()
+            ButtonTypes.FLOAT -> FloatNode()
+            ButtonTypes.STRING -> StringNode()
+            ButtonTypes.IMAGE -> ImageNodeClass()
+            ButtonTypes.SEPIA -> SepiaNode()
+            ButtonTypes.GREY -> GreyNode()
+            ButtonTypes.INVERT -> InvertNode()
+            ButtonTypes.BRIGHT -> BrightnessNode()
+            ButtonTypes.GAUSSIAN -> GaussianNode()
+            ButtonTypes.SCALE_PIXEL -> ScalePixelNode()
+            ButtonTypes.SCALE -> ScalePercentNode()
+            ButtonTypes.MOVE_PIXEL -> MovePixelsNode()
+            ButtonTypes.MOVE -> MovePercentNode()
+            ButtonTypes.ROTATE-> RotateNode()
+            ButtonTypes.ADD_TEXT_PIXEL -> AddTextPixelNode()
+            ButtonTypes.ADD_TEXT -> AddTextPercentNode()
+            ButtonTypes.FINISH_NODE -> EndNode()
         }
     }
 }
+
+data class Saved(val nodes: MutableList<NodeData>?,
+                 val links: MutableList<LinkData>?)
 
 class AwesomePhotoEditor : Application() {
     override fun start(primaryStage: Stage) {
